@@ -2,11 +2,11 @@
 
 Tern 插件：展示**所有已配置**模型供应商的使用额度，方便按余量选择合适的供应商干活。
 
-数据来自两条 omp 命令，不直接调用供应商 API、不保存任何密钥：
+数据来自两条 omp 命令加直查适配器，不保存任何密钥：
 
 - `omp usage --json`：已登录账户的限额报告、OAuth 失效凭据、无用量端点的账户
 - `omp models --json`：模型目录——凡是配置了凭据（API key 或 OAuth）的供应商都会出现，附模型数
-- **直查适配器**（`balances.luau`）：omp 查不到用量的供应商，用 `omp token` 取 key 后直查官方端点——DeepSeek 余额、Moonshot/Kimi 余额（cn→ai 回退）、MiniMax CN 订阅余量（5 小时/本周）。密钥只进请求头，不落盘
+- **直查适配器**（`balances.luau`）：omp 查不到用量的供应商，用 `omp token` 取 key 后直查官方端点——DeepSeek 余额、MiniMax CN 订阅余量（5 小时/本周）、Kimi Code 配额（5 小时/本周/本月）、OpenCode Go 用量（rolling/weekly/monthly）。密钥只进请求头，不落盘
 
 两者合并成供应商全景：有额度/余额数据的显示余量条与重置倒计时（omp 报告的 + 直查适配器补的）；没有任何用量端点的列在「未上报额度」卡片；OAuth 失效的列在「需要重新登录」卡片。余量最充足的供应商带「推荐」标记。
 
@@ -16,7 +16,7 @@ Tern 插件：展示**所有已配置**模型供应商的使用额度，方便�
   - 统计条：已配置 / 正常 / 偏低 / 耗尽 / 需登录
   - 每个有额度的供应商一张卡片：各额度窗口的余量条、剩余百分比、用量计数、重置倒计时，按紧急程度排序
   - 「推荐」标记：当前剩余最多的供应商，一眼可挑
-  - 「未上报额度」卡片：列出无用量端点的已配置供应商（附模型数）
+  - 「未上报额度」卡片：列出无用量端点的已配置供应商（附模型数）；直查被上游拒绝时显示原因（如 OpenCode「key 已过期」）
   - 「需要重新登录」卡片：OAuth 失效凭据及原因
   - 按 `r` 或点击「刷新」立即重新采集；每 60s 自动刷新
 - **状态栏段**（window 半）：`额度 · 正常` + 最紧的 2 个额度 + 需登录数，点击打开面板
@@ -25,9 +25,19 @@ Tern 插件：展示**所有已配置**模型供应商的使用额度，方便�
 ## 安装
 
 ```sh
-tern plugin link ~/Desktop/tmp/tern-quota   # 开发模式，目录内改代码即时生效
-# 或发布后：
-tern plugin install github.com/<you>/tern-quota
+tern plugin install github.com/amuluze/provider-quota
+```
+
+更新到最新版：
+
+```sh
+tern plugin install github.com/amuluze/provider-quota --force
+```
+
+开发模式（改动即时生效）：
+
+```sh
+git clone https://github.com/amuluze/provider-quota && tern plugin link ./provider-quota
 ```
 
 打开方式：命令面板搜「打开额度面板」或「New Provider Quota block」，或 `ctrl+alt+q`。
@@ -49,10 +59,11 @@ launchctl setenv TERN_QUOTA_BIN /path/to/omp   # macOS GUI 进程
 | 文件 | 作用 |
 | --- | --- |
 | `plugin.toml` | 清单：id、入口、block 声明 |
-| `usage.luau` | 纯函数：normalize `omp usage --json`、严重度、时长格式化、状态栏摘要 |
-| `collector.luau` | 采集循环：60s 轮询、30s 超时租约、失败保留旧快照 |
+| `usage.luau` | 纯函数：normalize `omp usage --json`、合并模型目录、严重度、时长格式化、状态栏摘要 |
+| `balances.luau` | 直查适配器：DeepSeek / MiniMax CN / Kimi Code / OpenCode Go 的端点与响应解析 |
+| `collector.luau` | 采集循环：60s 轮询、超时租约、失败保留旧快照 |
 | `view.luau` | 纯渲染：快照 → 原生节点（stats/card/table/meter） |
-| `host.luau` | host 半：定义 block、接进程与 kv、5s tick |
+| `host.luau` | host 半：定义 block、登录 shell 调 omp、token 缓存、直查富化、5s tick |
 | `window.luau` | window 半：面板命令、状态栏段、2s 轮询 kv 变化 |
 
 host 与 window 通过 `tern.kv`（`<state>/plugin-data/provider-quota/kv.json`）共享快照记录。
