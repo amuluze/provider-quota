@@ -615,28 +615,58 @@ function M.percent(remainingFraction: number): string
 	return p .. "%"
 end
 
--- Limits sorted by remaining, unknown last; used for the status segments.
-function M.urgentLimits(snap: Snapshot, max: number): { Limit }
-	local out: { Limit } = {}
+-- Status segments: at most one limit per provider (its most-consumed window),
+-- so two slots never both come from the same provider. Exhausted windows (0%)
+-- only take a slot when a provider has nothing else to show — the summary
+-- count already reports them, and a stuck 0% until reset is not actionable.
+-- Returns { { limit = Limit, provider = Provider } } sorted most-urgent first.
+function M.urgentLimits(snap: Snapshot, max: number): { { limit: Limit, provider: Provider } }
+	local candidates: { { limit: Limit, provider: Provider, live: boolean } } = {}
 	for _, prov in snap.providers do
+		local best: Limit? = nil
+		local bestFill = 1
+		local zero: Limit? = nil
 		for _, l in prov.limits do
-			if M.remainingFill(l) ~= nil then
-				table.insert(out, l)
+			local f = M.remainingFill(l)
+			if f ~= nil then
+				if f <= 0 then
+					if zero == nil then
+						zero = l
+					end
+				elseif f < bestFill then
+					bestFill = f
+					best = l
+				end
 			end
 		end
+		if best ~= nil then
+			table.insert(candidates, { limit = best, provider = prov, live = true })
+		elseif zero ~= nil then
+			table.insert(candidates, { limit = zero, provider = prov, live = false })
+		end
 	end
-	table.sort(out, function(a, b)
-		local fa = M.remainingFill(a) :: number
-		local fb = M.remainingFill(b) :: number
+	table.sort(candidates, function(a, b)
+		if a.live ~= b.live then
+			return a.live -- live windows first: exhausted ones wait in the summary count
+		end
+		local fa = M.remainingFill(a.limit) :: number
+		local fb = M.remainingFill(b.limit) :: number
 		if fa ~= fb then
 			return fa < fb
 		end
-		return a.key < b.key
+		return a.provider.key < b.provider.key
 	end)
-	while #out > max do
-		table.remove(out)
+	local out: { { limit: Limit, provider: Provider } } = {}
+	for i = 1, math.min(max, #candidates) do
+		table.insert(out, { limit = candidates[i].limit, provider = candidates[i].provider })
 	end
 	return out
+end
+
+-- Short name for tight status segments: "Kimi Code" -> "Kimi",
+-- "MiniMax CN" -> "MiniMax", "Z.AI" stays.
+function M.shortProviderName(name: string): string
+	return (name:gsub(" .*", ""))
 end
 
 -- summary(snap, now, opts) -> { text, tone, segments } for the status line
@@ -682,15 +712,21 @@ function M.summary(snap: Snapshot?, nowMs: number, opts: { error: string?, lastS
 	end
 
 	local segments: { Segment } = { { text = text, tone = tone } }
-	for _, l in M.urgentLimits(snap, 2) do
+	for _, pair in M.urgentLimits(snap, 2) do
+		local l = pair.limit
 		local sev = M.severity(l)
 		local fill = M.remainingFill(l) :: number
-		local name = l.label
-		if l.windowLabel ~= nil then
-			name = l.windowLabel
+		local name = l.windowLabel
+		if name == nil or name == "" then
+			name = l.label
 		end
 		table.insert(segments, {
-			text = string.format("%s %s", name, M.percent(fill)),
+			text = string.format(
+				"%s %s %s",
+				M.shortProviderName(pair.provider.name),
+				name,
+				M.percent(fill)
+			),
 			tone = if sev == "exhausted" then "error" elseif sev == "low" then "warning" else nil,
 		})
 	end
