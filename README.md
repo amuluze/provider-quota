@@ -61,7 +61,7 @@ The dashboard opens **split below the focused pane**; opening it again focuses t
 
 ### Reading the panel
 
-- **Stats strip** — `已配置 configured / 正常 OK / 偏低 low / 耗尽 exhausted / 需登录 login needed`, counted live.
+- **Stats strip** — `已配置 configured / 正常 OK / 偏低 low / 耗尽 exhausted / 需登录 login needed`, counted live per **provider** (a provider's several quota windows land in the bucket of its tightest one).
 - **Provider cards**, most urgent first. Each row is one quota window: remaining meter, percent, usage count, reset countdown. The card tagged **推荐** is where the most headroom is right now.
 - **余额 · 直查 rows** — money balances fetched straight from the provider API.
 - **未上报额度 card** — configured providers without a usable usage endpoint, with model counts; when a direct query is rejected upstream you see why (e.g. OpenCode "key 已过期").

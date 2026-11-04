@@ -14,8 +14,8 @@
 --     no-usage accounts ("no-usage"), the model catalog ("catalog"), plus the
 --     disabled-credentials list rendered separately. A missing amount is
 --     never 0 — remainingFraction stays nil and renders "未上报".
---   * Counts classify LIMITS (ok/low/exhausted/unknown); disabled credentials
---     are counted separately.
+--   * Counts classify PROVIDERS (ok/low/exhausted/unknown, by a provider's worst
+--     window); disabled credentials are counted separately.
 
 local M = {}
 
@@ -556,9 +556,11 @@ function M.recount(snap: Snapshot)
 		else
 			c.noQuota += 1
 		end
-		for _, l in prov.limits do
-			c.limits += 1
-			local sev = M.severity(l)
+		c.limits += #prov.limits
+		-- States count PROVIDERS, not windows: a provider lands in one bucket
+		-- by its worst window, so the totals match the configured count.
+		if #prov.limits > 0 then
+			local sev = M.providerWorst(prov)
 			if sev == "ok" then
 				c.ok += 1
 			elseif sev == "low" then
