@@ -1,0 +1,14 @@
+schema = 1
+id = "provider-quota"
+name = "Provider Quota"
+version = "0.1.0"
+description = "已登录模型供应商的额度面板：各窗口用量、余量、重置倒计时与登录状态。"
+icon = "gauge"
+host = "host.luau"
+window = "window.luau"
+
+[[blocks]]
+id = "dashboard"
+title = "Provider Quota"
+icon = "gauge"
+palette = true
