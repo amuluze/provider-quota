@@ -55,7 +55,7 @@ git clone https://github.com/amuluze/provider-quota && tern plugin link ./provid
 | 自动刷新 | 每 60s；失败时保留旧快照并显示原因 |
 | 状态栏 | 默认隐藏——命令面板执行「status bar on」 |
 
-面板在**焦点 pane 侧边拆分**打开，重复打开会复用已有面板。
+面板在**焦点 pane 下方拆分**打开，重复打开会复用已有面板。
 
 ## 工作原理
 
