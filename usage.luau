@@ -624,7 +624,7 @@ function M.urgentLimits(snap: Snapshot, max: number): { { limit: Limit, provider
 	local candidates: { { limit: Limit, provider: Provider, live: boolean } } = {}
 	for _, prov in snap.providers do
 		local best: Limit? = nil
-		local bestFill = 1
+		local bestFill = math.huge
 		local zero: Limit? = nil
 		for _, l in prov.limits do
 			local f = M.remainingFill(l)
