@@ -23,7 +23,7 @@ local function open(cx)
 			return
 		end
 	end
-	if not cx:new_block(BLOCK, {}, "beside") then
+	if not cx:new_block(BLOCK, {}, "below") then
 		cx:toast("error", "无法打开额度面板", "当前 Tern host 上没有这个插件。")
 	end
 end
