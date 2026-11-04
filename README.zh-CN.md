@@ -89,16 +89,6 @@ macOS GUI 启动的 daemon 设置方式：
 launchctl setenv TERN_QUOTA_BIN /path/to/omp
 ```
 
-## 排障
-
-| 症状 | 处理 |
-| --- | --- |
-| 某家供应商缺失 | omp 从环境变量读 API key，GUI daemon 看不到 shell rc；插件已通过登录 shell 调 omp。仅交互 shell 加载的文件（`.zshrc`）里的 key 仍会缺——移到 `~/.zshenv` 或 `omp auth import` 存进凭据库 |
-| 面板显示「无法启动 omp」 | daemon PATH 找不到 omp——设 `TERN_QUOTA_BIN` 后 `tern plugin reload` |
-| 状态栏无段 | 状态栏默认隐藏——命令面板执行「status bar on」 |
-| OpenCode 显示「key 已过期」 | Go 订阅已失效；续订或在 OpenCode 控制台重建 key（重新登录不会续期 key） |
-| 插件日志 | 以 `STENCIL_LOG=warn,stencil=info,tern::plugin=debug` 启动 daemon |
-
 ## 文件结构
 
 | 文件 | 作用 |

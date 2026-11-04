@@ -89,16 +89,6 @@ Set it for the GUI-launched daemon (macOS):
 launchctl setenv TERN_QUOTA_BIN /path/to/omp
 ```
 
-## Troubleshooting
-
-| Symptom | Fix |
-| --- | --- |
-| A provider is missing | omp reads API keys from env vars the GUI daemon can't see; this plugin already spawns omp via your login shell. Keys in interactive-only rc files (`.zshrc`) still won't show — move them to `~/.zshenv` or `omp auth import` them into the credential store |
-| "无法启动 omp" in the panel | daemon PATH lacks omp — set `TERN_QUOTA_BIN`, then `tern plugin reload` |
-| No status segments | the status bar is hidden by default — run "status bar on" from the palette |
-| OpenCode shows "key expired" | the Go subscription lapsed; resubscribe or create a new key in the OpenCode console (signing in again does not renew keys) |
-| Plugin logs | start the daemon with `STENCIL_LOG=warn,stencil=info,tern::plugin=debug` |
-
 ## Layout
 
 | File | Role |
