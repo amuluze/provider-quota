@@ -50,6 +50,49 @@ local function span(ctx: Ctx, t: string, s: string?): any
 	return ctx.ui.span(t, s)
 end
 
+-- Newer Tern builds hand a card its props as a third argument; older ones take
+-- the head and the body only. Probe once: a build that accepts the props
+-- argument keeps them in p, so the meta line can stay in the card head.
+local cardPropsFlag: boolean? = nil
+
+local function cardTakesProps(ctx: Ctx): boolean
+	if cardPropsFlag == nil then
+		local ok, probe = pcall(ctx.ui.card, "probe", {}, { meta = "probe" })
+		cardPropsFlag = ok
+			and type(probe) == "table"
+			and type(probe.p) == "table"
+			and probe.p.meta ~= nil
+	end
+	return cardPropsFlag
+end
+
+local function cardNode(ctx: Ctx, head: any, children: { any }, props: { [string]: any }): UiNode
+	if cardTakesProps(ctx) then
+		return ctx.ui.card(head, children, props)
+	end
+	local node = ctx.ui.card(head, children)
+	local p: { [string]: any } = node.p or {}
+	for k, v in props do
+		p[k] = v
+	end
+	node.p = p
+	return node
+end
+
+-- The stats strip only exists on newer Tern builds; older ones get a badge
+-- row with the same numbers.
+local function statsNode(ctx: Ctx, items: { any }): UiNode
+	local ui = ctx.ui
+	if ui.stats ~= nil then
+		return ui.stats(items)
+	end
+	local row: { any } = {}
+	for _, item in items do
+		table.insert(row, ui.badge(tostring(item.label) .. " " .. tostring(item.value), item.tone or "muted"))
+	end
+	return ui.row(row)
+end
+
 -- "推荐" goes to the provider whose best remaining fraction is the highest;
 -- that is where the user should send work next.
 local function recommendedKey(snap: Snapshot): string?
@@ -85,24 +128,24 @@ local function limitRow(ctx: Ctx, l: Limit): { any }
 		-- Money rows: no meter, no reset — just the amount.
 		table.insert(label, span(ctx, " · 直查", "muted"))
 		bar = span(ctx, "—", "muted")
-		left = { text = { span(ctx, l.amountText or "—", "num strong") } }
+		left = { span(ctx, l.amountText or "—", "num strong") }
 		reset = span(ctx, "", "")
 	elseif fill ~= nil then
-		bar = { meter = { value = fill, tone = tone, title = "剩余 " .. usage.percent(fill) } }
+		bar = { meter = { value = fill, tone = tone } }
 		local parts: { any } = { span(ctx, usage.percent(fill), if sev == "exhausted" then "error strong" elseif sev == "low" then "warning strong" else "num") }
 		if l.remaining ~= nil and l.unit ~= nil and l.unit ~= "" then
 			table.insert(parts, span(ctx, " " .. tostring(math.floor(l.remaining + 0.5)) .. " " .. l.unit, "muted"))
 		end
-		left = { text = parts }
+		left = parts
 		if l.resetsAt ~= nil then
 			local ms = (l.resetsAt :: number) - ctx.now
 			if ms <= 0 then
-				reset = span(ctx, "已到期", "warning")
+				reset = { span(ctx, "已到期", "warning") }
 			else
-				reset = { text = { span(ctx, usage.duration(ms), "num"), span(ctx, " 后", "muted") } }
+				reset = { span(ctx, usage.duration(ms), "num"), span(ctx, " 后", "muted") }
 			end
 		else
-			reset = span(ctx, "未上报", "muted")
+			reset = { span(ctx, "未上报", "muted") }
 		end
 	else
 		bar = span(ctx, "—", "muted")
@@ -110,15 +153,8 @@ local function limitRow(ctx: Ctx, l: Limit): { any }
 		reset = span(ctx, "未上报", "muted")
 	end
 
-	return {
-		id = l.key,
-		cells = {
-			{ text = label },
-			bar,
-			left,
-			reset,
-		},
-	}
+	-- A row is a plain cell list; the row-id form only exists on newer builds.
+	return { label, bar, left, reset }
 end
 
 local LIMIT_COLS = {
@@ -162,7 +198,13 @@ local function providerCard(ctx: Ctx, prov: Provider, recommended: boolean): UiN
 	for _, l in sortedLimits(prov) do
 		table.insert(rows, limitRow(ctx, l))
 	end
-	local body: { any } = { ui.table(LIMIT_COLS, rows, { empty = "此供应商未上报额度。" }) }
+	-- Older builds have no table options, so the empty case is a text line.
+	local body: { any } = {}
+	if #rows > 0 then
+		table.insert(body, ui.table(LIMIT_COLS, rows))
+	else
+		table.insert(body, ui.text({ span(ctx, "此供应商未上报额度。", "muted") }))
+	end
 	local meta: { any } = {}
 	if prov.models ~= nil then
 		table.insert(meta, span(ctx, tostring(prov.models) .. " 个模型", "muted"))
@@ -171,12 +213,20 @@ local function providerCard(ctx: Ctx, prov: Provider, recommended: boolean): UiN
 		local age = ctx.now - (prov.fetchedAt :: number)
 		table.insert(meta, span(ctx, " · 更新于 " .. usage.ago(ctx.now, prov.fetchedAt :: number), if age > STALE_MS then "warning" else "muted"))
 	end
+	-- The card head has no meta slot on older builds, so the line rides in the
+	-- body instead of the head.
 	local props: { [string]: any } = {
 		key = "p:" .. prov.key,
 		icon = "gauge",
-		meta = meta,
 	}
-	return with(ui.card(head, body, props), { role = "provider-quota.provider" })
+	if cardTakesProps(ctx) then
+		if #meta > 0 then
+			props.meta = meta
+		end
+	elseif #meta > 0 then
+		table.insert(body, 1, ui.text(meta))
+	end
+	return with(cardNode(ctx, head, body, props), { role = "provider-quota.provider" })
 end
 
 -- Providers without any reported quota, one compact row each.
@@ -215,11 +265,17 @@ local function noQuotaCard(ctx: Ctx, providers: { Provider }): UiNode?
 		end
 		table.insert(rows, with(ui.text(parts), { key = "nq:" .. prov.key }))
 	end
-	return with(ui.card("未上报额度", rows, {
+	local props: { [string]: any } = {
 		key = "noquota",
 		icon = "puzzle",
-		meta = span(ctx, tostring(#providers) .. " 家", "muted"),
-	}), { role = "provider-quota.no-quota" })
+	}
+	local head: any = "未上报额度"
+	if cardTakesProps(ctx) then
+		props.meta = span(ctx, tostring(#providers) .. " 家", "muted")
+	else
+		head = "未上报额度 · " .. tostring(#providers) .. " 家"
+	end
+	return with(cardNode(ctx, head, rows, props), { role = "provider-quota.no-quota" })
 end
 
 local function disabledCard(ctx: Ctx): UiNode?
@@ -241,7 +297,7 @@ local function disabledCard(ctx: Ctx): UiNode?
 		table.insert(rows, with(ui.text(parts), { key = "d:" .. d.key }))
 	end
 	table.insert(rows, with(ui.text({ span(ctx, "在终端重新登录该供应商后按 r 刷新。", "muted") }), { key = "d:hint" }))
-	return with(ui.card("需要重新登录", rows, { key = "disabled", icon = "alert", tone = "warning" }), {
+	return with(cardNode(ctx, "需要重新登录", rows, { key = "disabled", icon = "alert", tone = "warning" }), {
 		role = "provider-quota.disabled",
 	})
 end
@@ -280,13 +336,13 @@ function M.render(record: RenderRecord, nowMs: number, ui: Ui): { main: UiNode, 
 		{ label = "耗尽", value = tostring(c.exhausted), tone = if c.exhausted > 0 then "error" else nil },
 		{ label = "需登录", value = tostring(c.disabled), tone = if c.disabled > 0 then "warning" else nil },
 	}
-	table.insert(main, with(ui.stats(stats), { key = "stats" }))
+	table.insert(main, with(statsNode(ctx, stats), { key = "stats" }))
 
 	if status.error ~= nil then
 		local age = if status.lastSuccess ~= nil
 			then "，数据是 " .. usage.ago(nowMs, status.lastSuccess :: number)
 			else ""
-		table.insert(main, with(ui.card("上次刷新失败", {
+		table.insert(main, with(cardNode(ctx, "上次刷新失败", {
 			with(ui.text({
 				span(ctx, status.error :: string, "warning"),
 				span(ctx, age .. "。按 r 重试。", "muted"),
@@ -336,17 +392,26 @@ function M.render(record: RenderRecord, nowMs: number, ui: Ui): { main: UiNode, 
 		table.insert(main, with(ui.text({ span(ctx, "omp 未配置任何模型供应商；先在终端里登录一家。", "muted") }), { key = "empty" }))
 	end
 
-	local dock: { any } = {
-		with(ui.text({ span(ctx, "omp usage + models · 每 60s 自动刷新", "muted") }), { key = "dock-note" }),
-		with(ui.row({}), { key = "dock-fill", grow = 1 }),
-		with(ui.button("刷新", {
+	-- The button builder only exists on newer builds; older ones keep the
+	-- refresh on the "r" key.
+	local refresh: any
+	if ui.button ~= nil then
+		refresh = ui.button("刷新", {
 			key = "refresh",
 			icon = "repeat",
 			size = "sm",
 			keys = { "r" },
 			actions = { click = "refresh" },
 			busy = status.refreshing,
-		}), { key = "dock-refresh" }),
+		})
+	else
+		refresh = ui.text({ span(ctx, if status.refreshing then "刷新中…" else "按 r 刷新", "muted") })
+	end
+
+	local dock: { any } = {
+		with(ui.text({ span(ctx, "omp usage + models · 每 60s 自动刷新", "muted") }), { key = "dock-note" }),
+		with(ui.row({}), { key = "dock-fill", grow = 1 }),
+		with(refresh, { key = "dock-refresh" }),
 	}
 
 	return {
