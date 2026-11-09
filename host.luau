@@ -85,6 +85,11 @@ end
 -- memory and in request headers only.
 local tokenCache: { [string]: string } = {}
 
+-- Balance endpoints that failed back off for a while: later lookups skip
+-- them so a dead mirror (Kimi falls back across three URLs) stops costing
+-- its 10s timeout on every refresh cycle.
+local urlBadUntil: { [string]: number } = {}
+
 local function getToken(pid: string, done: (string?) -> ())
 	local cached = tokenCache[pid]
 	if cached ~= nil then
@@ -110,7 +115,10 @@ local function fetchBalance(pid: string, key: string, done: ({ any }?, string?) 
 		done(nil, nil)
 		return
 	end
-	local urls = adapter.urls
+	-- Skip URLs that failed recently; when every URL is marked, the plan
+	-- still probes the canonical first URL so the error note stays visible
+	-- and the endpoint can recover.
+	local plan = balances.planAttempts(adapter.urls, urlBadUntil, now())
 	local idx = 0
 	local lastNote: string? = nil
 	local function noteFrom(body: string): string?
@@ -135,13 +143,14 @@ local function fetchBalance(pid: string, key: string, done: ({ any }?, string?) 
 	end
 	local function attempt()
 		idx += 1
-		local url = urls[idx]
+		local url = plan[idx]
 		if url == nil then
 			done(nil, lastNote)
 			return
 		end
 		tern.fetch(url, { headers = { Authorization = "Bearer " .. key }, timeout_ms = 10000 }, function(r)
 			if r.error ~= nil or r.status ~= 200 or r.body == "" then
+				urlBadUntil[url] = now() + balances.URL_BACKOFF_MS
 				lastNote = noteFrom(r.body) or lastNote
 				attempt()
 				return
@@ -150,6 +159,7 @@ local function fetchBalance(pid: string, key: string, done: ({ any }?, string?) 
 			if ok and type(rows) == "table" and #rows > 0 then
 				done(rows, nil)
 			else
+				urlBadUntil[url] = now() + balances.URL_BACKOFF_MS
 				lastNote = noteFrom(r.body) or lastNote
 				attempt()
 			end
@@ -246,6 +256,9 @@ local collector = Collector.new({
 	fetchModels = function(timeout, done)
 		return ompRun({ "models", "--json" }, timeout, done)
 	end,
+	invalidate = function(timeout, done)
+		return ompRun({ "usage", "invalidate" }, timeout, done)
+	end,
 	enrich = enrich,
 	publish = function(rec)
 		tern.kv.set("record", rec)
@@ -277,14 +290,14 @@ tern.block.define("dashboard", {
 	end,
 	key = function(_state, key, _cx)
 		if key.name == "r" and not key.ctrl and not key.alt and not key.meta then
-			collector:refresh()
+			collector:refresh(true)
 			return true
 		end
 		return false
 	end,
 	event = function(_state, ev, _cx)
 		if ev.ev == "action" and ev.act == "refresh" then
-			collector:refresh()
+			collector:refresh(true)
 		end
 	end,
 })

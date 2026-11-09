@@ -382,6 +382,30 @@ local function parseKimi(body: string, decode: (string) -> any): { LimitDraft }?
 	return nil
 end
 
+----------------------------------------------------------------------------
+-- URL attempt planning: a failing endpoint backs off instead of costing its
+-- timeout on every refresh cycle.
+
+-- A URL that just failed is skipped for this long.
+M.URL_BACKOFF_MS = 10 * 60 * 1000
+
+-- Which URLs one balance lookup should try, in adapter order: URLs whose
+-- backoff has expired first; when every URL is marked failed, the canonical
+-- first URL alone, so a persistent failure keeps surfacing its error note
+-- and gets a recovery probe once per cycle.
+function M.planAttempts(urls: { string }, badUntil: { [string]: number }, nowMs: number): { string }
+	local out: { string } = {}
+	for _, url in urls do
+		if (badUntil[url] or 0) <= nowMs then
+			table.insert(out, url)
+		end
+	end
+	if #out == 0 and #urls > 0 then
+		out = { urls[1] }
+	end
+	return out
+end
+
 M.adapters = {
 	deepseek = {
 		urls = { "https://api.deepseek.com/user/balance" },

@@ -73,8 +73,8 @@ git clone https://github.com/amuluze/provider-quota && tern plugin link ./provid
 
 ### 刷新
 
-- 面板内按 `r`，或点「刷新」按钮——立即重采。
-- 否则每 60s 自动。刷新失败时保留旧快照、显示原因横幅，总览追加「（旧）」标记；超过 10 分钟的供应商报告会在「更新于」上显示警告色。
+- 面板内按 `r`，或点「刷新」按钮——立即重采，且会先执行 `omp usage invalidate`：omp 会持续返回缓存的用量报告（可能已是几分钟前的旧数据），手动刷新永远向供应商现取。
+- 否则每 60s 自动，周期从每次刷新**开始**时刻起算，omp 变慢不会拉长周期。刷新失败时保留旧快照、显示原因横幅，总览追加「（旧）」标记；超过 10 分钟的供应商报告会在「更新于」上显示警告色。
 
 ### 典型工作流
 
@@ -121,7 +121,7 @@ launchctl setenv TERN_QUOTA_BIN /path/to/omp
 | `balances.luau` | 直查适配器：DeepSeek / MiniMax CN / Kimi Code / OpenCode Go |
 | `collector.luau` | 采集循环：60s 轮询、超时租约、失败保留旧快照 |
 | `view.luau` | 纯渲染：快照 → 原生节点（stats / card / table / meter） |
-| `host.luau` | host 半：block、登录 shell 调 omp、token 缓存、直查富化 |
+| `host.luau` | host 半：block、登录 shell 调 omp、token 缓存、直查富化、失败 URL 退避 |
 | `window.luau` | window 半：面板命令、状态栏段、kv 变化轮询 |
 
 host 与 window 两半通过 `tern.kv`（`<state>/plugin-data/provider-quota/kv.json`）共享快照。

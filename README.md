@@ -73,8 +73,8 @@ Off by default — run **status bar on** from the palette. The plugin then shows
 
 ### Refresh
 
-- `r` in the panel, or the Refresh button — immediate.
-- Otherwise every 60 s. A failed refresh keeps the last good snapshot, shows a banner with the reason, and the summary gains a "（旧）" marker. Stale provider reports (older than 10 min) get a warning tint on their "updated" line.
+- `r` in the panel, or the Refresh button — immediate, and it first runs `omp usage invalidate`: omp keeps serving cached usage reports that can be minutes old, so a manual refresh always shows what the providers report right now.
+- Otherwise every 60 s, counted from each refresh's **start**, so a slow omp never stretches the cycle. A failed refresh keeps the last good snapshot, shows a banner with the reason, and the summary gains a "（旧）" marker. Stale provider reports (older than 10 min) get a warning tint on their "updated" line.
 
 ### Typical loop
 
@@ -121,7 +121,7 @@ launchctl setenv TERN_QUOTA_BIN /path/to/omp
 | `balances.luau` | direct-query adapters: DeepSeek / MiniMax CN / Kimi Code / OpenCode Go |
 | `collector.luau` | polling loop: 60 s interval, timeout lease, keeps last good snapshot |
 | `view.luau` | pure rendering: snapshot → native nodes (stats / cards / meters) |
-| `host.luau` | host half: block, login-shell omp, token cache, balance enrichment |
+| `host.luau` | host half: block, login-shell omp, token cache, balance enrichment, failing-URL backoff |
 | `window.luau` | window half: palette command, status segments, kv change poll |
 
 Host and window halves share the snapshot through `tern.kv` (`<state>/plugin-data/provider-quota/kv.json`).
