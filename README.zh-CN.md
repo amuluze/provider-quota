@@ -24,7 +24,7 @@
 | Z.AI / Anthropic / OpenAI Codex / … | `omp usage --json` | 各窗口余量条、重置倒计时 |
 | DeepSeek | `GET api.deepseek.com/user/balance` | 余额（¥） |
 | MiniMax CN | `GET api.minimaxi.com/v1/token_plan/remains` | 5 小时 / 本周余量 |
-| Kimi Code | `GET api.kimi.com/coding/v1/usages` | 5 小时 / 本周 / 本月余量 |
+| Moonshot（Kimi 平台，key 可为 Kimi Code key） | `GET api.kimi.com/coding/v1/usages`，平台 key 回退 `api.moonshot.ai/v1/usages` | 5 小时 / 本周 / 本月余量 |
 | OpenCode Go | `GET opencode.ai/zen/go/v1/usage` | rolling / weekly / monthly 余量 |
 | 其他 | `omp models --json` 目录 | 「未上报」行 + 模型数 |
 
@@ -118,7 +118,7 @@ launchctl setenv TERN_QUOTA_BIN /path/to/omp
 | --- | --- |
 | `plugin.toml` | 清单：id、入口、block 声明 |
 | `usage.luau` | 纯函数：normalize + 合并、严重度、时长格式化、状态栏摘要 |
-| `balances.luau` | 直查适配器：DeepSeek / MiniMax CN / Kimi Code / OpenCode Go |
+| `balances.luau` | 直查适配器：DeepSeek / MiniMax CN / Moonshot / OpenCode Go |
 | `collector.luau` | 采集循环：60s 轮询、超时租约、失败保留旧快照 |
 | `view.luau` | 纯渲染：快照 → 原生节点（stats / card / table / meter） |
 | `host.luau` | host 半：block、登录 shell 调 omp、token 缓存、直查富化、失败 URL 退避 |

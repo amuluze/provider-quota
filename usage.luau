@@ -103,9 +103,9 @@ local PROVIDER_NAMES: { [string]: string } = {
 	["google-antigravity"] = "Google Antigravity",
 	["github-copilot"] = "GitHub Copilot",
 	zai = "Z.AI",
-	["kimi-code"] = "Kimi",
+	["kimi-code"] = "Kimi Code",
 	kimi = "Kimi",
-	moonshot = "Kimi Code",
+	moonshot = "Moonshot",
 	deepseek = "DeepSeek",
 	minimax = "MiniMax",
 	["minimax-code-cn"] = "MiniMax CN",
@@ -665,9 +665,13 @@ function M.urgentLimits(snap: Snapshot, max: number): { { limit: Limit, provider
 	return out
 end
 
--- Short name for tight status segments: "Kimi Code" -> "Kimi",
--- "MiniMax CN" -> "MiniMax", "Z.AI" stays.
+-- Short name for tight status segments: "MiniMax CN" -> "MiniMax", "Z.AI"
+-- stays. "Kimi Code" stays whole: omp 的平台供应商（"Kimi"，id moonshot）与之
+-- 是两家不同服务，裸 "Kimi" 不再能唯一指代一家供应商。
 function M.shortProviderName(name: string): string
+	if name == "Kimi Code" then
+		return name
+	end
 	return (name:gsub(" .*", ""))
 end
 

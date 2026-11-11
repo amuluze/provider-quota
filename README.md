@@ -24,7 +24,7 @@
 | Z.AI / Anthropic / OpenAI Codex / … | `omp usage --json` | per-window meters, reset countdowns |
 | DeepSeek | `GET api.deepseek.com/user/balance` | balance (¥) |
 | MiniMax CN | `GET api.minimaxi.com/v1/token_plan/remains` | 5-hour / weekly meters |
-| Kimi Code | `GET api.kimi.com/coding/v1/usages` | 5-hour / weekly / monthly meters |
+| Moonshot (Kimi platform; key may be a Kimi Code key) | `GET api.kimi.com/coding/v1/usages`, platform-key fallback `api.moonshot.ai/v1/usages` | 5-hour / weekly / monthly meters |
 | OpenCode Go | `GET opencode.ai/zen/go/v1/usage` | rolling / weekly / monthly meters |
 | anything else | `omp models --json` catalog | "unreported" row + model count |
 
@@ -118,7 +118,7 @@ launchctl setenv TERN_QUOTA_BIN /path/to/omp
 | --- | --- |
 | `plugin.toml` | manifest: id, entries, block declaration |
 | `usage.luau` | pure functions: normalize + merge, severity, durations, status summary |
-| `balances.luau` | direct-query adapters: DeepSeek / MiniMax CN / Kimi Code / OpenCode Go |
+| `balances.luau` | direct-query adapters: DeepSeek / MiniMax CN / Moonshot / OpenCode Go |
 | `collector.luau` | polling loop: 60 s interval, timeout lease, keeps last good snapshot |
 | `view.luau` | pure rendering: snapshot → native nodes (stats / cards / meters) |
 | `host.luau` | host half: block, login-shell omp, token cache, balance enrichment, failing-URL backoff |
