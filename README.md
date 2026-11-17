@@ -8,7 +8,7 @@
 
 ![Provider Quota dashboard](docs/screenshot.png)
 
-![Tern](https://img.shields.io/badge/Tern-plugin-blueviolet) ![Luau](https://img.shields.io/badge/Luau-%21strict-blue) ![Version](https://img.shields.io/badge/version-0.1.0-green)
+![Tern](https://img.shields.io/badge/Tern-plugin-blueviolet) ![Luau](https://img.shields.io/badge/Luau-%21strict-blue) ![Version](https://img.shields.io/badge/version-0.1.3-green)
 
 </div>
 
@@ -21,12 +21,14 @@
 
 | Provider | Source | Shows |
 | --- | --- | --- |
-| Z.AI / Anthropic / OpenAI Codex / … | `omp usage --json` | per-window meters, reset countdowns |
+| Z.AI / Anthropic / OpenAI Codex / Command Code / … | `omp usage --json` | per-window meters, reset countdowns |
 | DeepSeek | `GET api.deepseek.com/user/balance` | balance (¥) |
 | MiniMax CN | `GET api.minimaxi.com/v1/token_plan/remains` | 5-hour / weekly meters |
 | Moonshot (Kimi platform; key may be a Kimi Code key) | `GET api.kimi.com/coding/v1/usages`, platform-key fallback `api.moonshot.ai/v1/usages` | 5-hour / weekly / monthly meters |
 | OpenCode Go | `GET opencode.ai/zen/go/v1/usage` | rolling / weekly / monthly meters |
 | anything else | `omp models --json` catalog | "unreported" row + model count |
+
+Providers don't report the same fields: Command Code sends `used`/`limit`, Z.AI sends `remainingFraction`. The plugin derives the remaining share from whatever the report **does** carry (`1 - usedFraction`, `remaining / limit`, `limit - used`), so a provider that omits a field still gets a meter instead of an "unreported" row.
 
 ## Install
 
@@ -123,6 +125,7 @@ launchctl setenv TERN_QUOTA_BIN /path/to/omp
 | `view.luau` | pure rendering: snapshot → native nodes (stats / cards / meters) |
 | `host.luau` | host half: block, login-shell omp, token cache, balance enrichment, failing-URL backoff |
 | `window.luau` | window half: palette command, status segments, kv change poll |
+| `tests/usage_test.luau` | regression tests for the pure functions: `luau tests/usage_test.luau` |
 
 Host and window halves share the snapshot through `tern.kv` (`<state>/plugin-data/provider-quota/kv.json`).
 

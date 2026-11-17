@@ -8,7 +8,7 @@
 
 ![额度面板截图](docs/screenshot.png)
 
-![Tern](https://img.shields.io/badge/Tern-plugin-blueviolet) ![Luau](https://img.shields.io/badge/Luau-%21strict-blue) ![Version](https://img.shields.io/badge/version-0.1.0-green)
+![Tern](https://img.shields.io/badge/Tern-plugin-blueviolet) ![Luau](https://img.shields.io/badge/Luau-%21strict-blue) ![Version](https://img.shields.io/badge/version-0.1.3-green)
 
 </div>
 
@@ -21,12 +21,14 @@
 
 | 供应商 | 数据源 | 展示 |
 | --- | --- | --- |
-| Z.AI / Anthropic / OpenAI Codex / … | `omp usage --json` | 各窗口余量条、重置倒计时 |
+| Z.AI / Anthropic / OpenAI Codex / Command Code / … | `omp usage --json` | 各窗口余量条、重置倒计时 |
 | DeepSeek | `GET api.deepseek.com/user/balance` | 余额（¥） |
 | MiniMax CN | `GET api.minimaxi.com/v1/token_plan/remains` | 5 小时 / 本周余量 |
 | Moonshot（Kimi 平台，key 可为 Kimi Code key） | `GET api.kimi.com/coding/v1/usages`，平台 key 回退 `api.moonshot.ai/v1/usages` | 5 小时 / 本周 / 本月余量 |
 | OpenCode Go | `GET opencode.ai/zen/go/v1/usage` | rolling / weekly / monthly 余量 |
 | 其他 | `omp models --json` 目录 | 「未上报」行 + 模型数 |
+
+omp 各家报的字段并不统一：Command Code 只给 `used`/`limit`，Z.AI 给 `remainingFraction`。插件按报告里**实际有的**字段推导出余量（`1 - usedFraction`、`remaining / limit`、`limit - used`），所以缺字段的那家照样有余量条，而不是一行「未上报」。
 
 ## 安装
 
@@ -123,6 +125,7 @@ launchctl setenv TERN_QUOTA_BIN /path/to/omp
 | `view.luau` | 纯渲染：快照 → 原生节点（stats / card / table / meter） |
 | `host.luau` | host 半：block、登录 shell 调 omp、token 缓存、直查富化、失败 URL 退避 |
 | `window.luau` | window 半：面板命令、状态栏段、kv 变化轮询 |
+| `tests/usage_test.luau` | 纯函数回归测试：`luau tests/usage_test.luau` |
 
 host 与 window 两半通过 `tern.kv`（`<state>/plugin-data/provider-quota/kv.json`）共享快照。
 

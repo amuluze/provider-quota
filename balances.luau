@@ -19,6 +19,8 @@ export type LimitDraft = {
 	status: string,
 	amountText: string?,
 	isBalance: boolean?,
+	-- Rows from this module come from a direct provider-API query.
+	isDirect: boolean?,
 }
 
 export type Adapter = {

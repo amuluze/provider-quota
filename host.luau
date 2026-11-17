@@ -216,6 +216,8 @@ local function enrich(usageOut: string, modelsOut: string, done: (any) -> ())
 			fetchBalance(provider.key, key, function(rows, note)
 				if rows ~= nil then
 					for _, l in rows do
+						-- These rows came from a direct provider-API query.
+						l.isDirect = true
 						table.insert(provider.limits, l)
 					end
 					provider.state = "reported"

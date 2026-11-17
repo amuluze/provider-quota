@@ -30,9 +30,12 @@ export type Limit = {
 	resetsAt: number?,
 	-- As reported: "ok" | "warning" | "exhausted" | …
 	status: string,
-	-- Balance rows (direct provider-API adapters): preformatted money text.
+	-- Balance rows: money/credits left on the account, no quota window.
 	amountText: string?,
 	isBalance: boolean?,
+	-- The row came from a direct provider-API query (this plugin's adapters),
+	-- not from omp's usage report.
+	isDirect: boolean?,
 }
 
 -- state: "reported" (quota rows below) | "no-usage" (configured, no usage
@@ -103,6 +106,7 @@ local PROVIDER_NAMES: { [string]: string } = {
 	["google-antigravity"] = "Google Antigravity",
 	["github-copilot"] = "GitHub Copilot",
 	zai = "Z.AI",
+	commandcode = "Command Code",
 	["kimi-code"] = "Kimi Code",
 	kimi = "Kimi",
 	moonshot = "Moonshot",
@@ -160,6 +164,16 @@ local function optNumber(t: { [string]: any }, field: string, path: string): num
 		fail(path .. "." .. field, "must be a finite number")
 	end
 	return v
+end
+
+-- Lenient number read: absent or non-numeric yields nil instead of failing
+-- the whole payload. Used for amount fields a provider may report partially.
+local function numField(t: { [string]: any }, field: string): number?
+	local v = t[field]
+	if isFinite(v) then
+		return v
+	end
+	return nil
 end
 
 local function optTable(t: { [string]: any }, field: string, path: string): { [string]: any }?
@@ -231,6 +245,10 @@ end
 -- "exhausted" | "low" | "ok" | "unknown"
 function M.severity(l: Limit): string
 	if l.isBalance then
+		-- An empty balance means nothing left to spend on the provider.
+		if l.remaining ~= nil and l.remaining <= 0 then
+			return "exhausted"
+		end
 		return "ok"
 	end
 	local st = string.lower(l.status or "")
@@ -350,10 +368,39 @@ local function normalizeUsage(payload: any): Snapshot
 			local remainingFraction: number? = nil
 			local remaining: number? = nil
 			local unit: string? = nil
+			local isBalance = false
+			local amountText: string? = nil
 			if amount ~= nil then
 				remainingFraction = optNumber(amount, "remainingFraction", lpath .. ".amount")
 				remaining = optNumber(amount, "remaining", lpath .. ".amount")
 				unit = optString(amount, "unit", lpath .. ".amount")
+				-- Providers may report only part of the amount: Command Code
+				-- sends used/limit without remainingFraction. Derive the
+				-- missing pieces from what is there, so the row still gets a
+				-- meter instead of reading "未上报".
+				local used = numField(amount, "used")
+				local limit = numField(amount, "limit")
+				local usedFraction = numField(amount, "usedFraction")
+				if remainingFraction == nil then
+					if usedFraction ~= nil then
+						remainingFraction = math.clamp(1 - usedFraction, 0, 1)
+					elseif limit ~= nil and limit > 0 and remaining ~= nil then
+						remainingFraction = math.clamp(remaining / limit, 0, 1)
+					elseif limit ~= nil and limit > 0 and used ~= nil then
+						remainingFraction = math.clamp((limit - used) / limit, 0, 1)
+					end
+				end
+				if remaining == nil and limit ~= nil and used ~= nil then
+					remaining = limit - used
+				end
+				-- A credit balance (money left on the account) has no quota
+				-- window: an amount without a limit renders as a balance row.
+				if win == nil and limit == nil and remaining ~= nil and remainingFraction == nil then
+					isBalance = true
+					amountText = if unit ~= nil and unit ~= ""
+						then string.format("%.2f %s", remaining, unit)
+						else string.format("%.2f", remaining)
+				end
 			end
 
 			table.insert(prov.limits, {
@@ -365,6 +412,8 @@ local function normalizeUsage(payload: any): Snapshot
 				unit = unit,
 				resetsAt = resetsAt,
 				status = optString(raw, "status", lpath) or "",
+				amountText = amountText,
+				isBalance = isBalance,
 			} :: Limit)
 		end
 	end
@@ -666,10 +715,10 @@ function M.urgentLimits(snap: Snapshot, max: number): { { limit: Limit, provider
 end
 
 -- Short name for tight status segments: "MiniMax CN" -> "MiniMax", "Z.AI"
--- stays. "Kimi Code" stays whole: omp 的平台供应商（"Kimi"，id moonshot）与之
--- 是两家不同服务，裸 "Kimi" 不再能唯一指代一家供应商。
+-- stays. "<X> Code" stays whole: 编程套餐是独立产品，裸 "<X>" 既可能指平台
+-- 供应商（"Kimi"，id moonshot），也读不出是哪家。
 function M.shortProviderName(name: string): string
-	if name == "Kimi Code" then
+	if name:match(" Code$") ~= nil then
 		return name
 	end
 	return (name:gsub(" .*", ""))

@@ -126,7 +126,9 @@ local function limitRow(ctx: Ctx, l: Limit): { any }
 	local reset: any
 	if l.isBalance then
 		-- Money rows: no meter, no reset — just the amount.
-		table.insert(label, span(ctx, " · 直查", "muted"))
+		if l.isDirect then
+			table.insert(label, span(ctx, " · 直查", "muted"))
+		end
 		bar = span(ctx, "—", "muted")
 		left = { span(ctx, l.amountText or "—", "num strong") }
 		reset = span(ctx, "", "")
@@ -149,7 +151,12 @@ local function limitRow(ctx: Ctx, l: Limit): { any }
 		end
 	else
 		bar = span(ctx, "—", "muted")
-		left = span(ctx, "未上报", "muted")
+		if l.remaining ~= nil and l.unit ~= nil and l.unit ~= "" then
+			-- The provider reported an amount but no share of a cap.
+			left = span(ctx, tostring(math.floor(l.remaining + 0.5)) .. " " .. l.unit, "num")
+		else
+			left = span(ctx, "未上报", "muted")
+		end
 		reset = span(ctx, "未上报", "muted")
 	end
 
